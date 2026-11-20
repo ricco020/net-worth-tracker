@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Net worth tracker: monthly snapshots and what moved your net worth</title>
+<meta name="description" content="Free net worth tracker: list what you own and what you owe, save a snapshot each month, and see net worth, liquid net worth and exactly which accounts and debts moved it since last month. Monthly average, months to reach a goal, CSV export. Runs in your browser, nothing is sent anywhere.">
+<link rel="canonical" href="https://ricco020.github.io/net-worth-tracker/">
+<style>
+:root{--ink:#1d1a24;--paper:#f3efe6;--navy:#23395b;--rust:#b2542b;--rule:#d8d0bd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 Georgia,"Iowan Old Style",serif}
+main{max-width:860px;margin:0 auto;padding:36px 18px 60px}
+h1{font-size:1.9rem;line-height:1.15;margin:0 0 .4em;color:var(--navy)}
+h2{font-size:1.2rem;margin:1.8em 0 .5em;color:var(--navy)}
+a{color:var(--navy)}
+.box{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:14px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+label{font-size:.85rem;display:flex;flex-direction:column;gap:3px;min-width:0}
+input,select{font:inherit;padding:7px;border:1px solid var(--rule);border-radius:5px;background:#fff;width:100%;min-width:0}
+.bill{display:grid;grid-template-columns:3fr 2fr 1.4fr auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px dashed var(--rule)}
+.bill button{font:inherit;padding:7px 10px;border:1px solid var(--rule);border-radius:5px;background:#fff;cursor:pointer}
+@media(max-width:620px){.bill{grid-template-columns:1fr 1fr auto}.bill label:first-child{grid-column:1/-1}}
+.pos{color:#2d6a3e}.neg{color:var(--rust)}
+.res td.n b{font-weight:bold}
+.del{font:inherit;padding:2px 7px;border:1px solid var(--rule);border-radius:4px;background:#fff;cursor:pointer}
+.dl{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.dl button{font:inherit;font-weight:bold;padding:9px 14px;border:2px solid var(--navy);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer}
+.dl button.main{background:var(--navy);color:#fff}
+.chk{flex-direction:row;align-items:center;gap:8px;font-size:.9rem}.chk input{width:auto}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}
+.sum div{background:#fff;border-top:4px solid var(--rust);padding:10px 14px;border-radius:4px}
+.sum b{display:block;font-size:1.2rem;color:var(--navy)}
+.warn{background:#fbe9e1;border-left:4px solid var(--rust);padding:8px 12px;border-radius:4px;margin:10px 0}
+.res{width:100%;border-collapse:collapse;background:#fff;font-size:.93rem}
+.res th,.res td{border-bottom:1px solid var(--rule);padding:6px 8px;text-align:left;vertical-align:top}
+.res td.d,.res td.n{white-space:nowrap}.res td.n{text-align:right}
+.res tr.g td{background:#eef3f8;font-weight:bold;color:var(--navy)}
+.tag{display:inline-block;font-size:.75rem;padding:0 6px;border-radius:3px;background:#fbe9e1;color:var(--rust);margin-left:4px}
+.scroll{overflow-x:auto}
+small{color:#5f5a66}
+@media(max-width:620px){.res{font-size:.85rem}.res th,.res td{padding:5px 4px}}
+@media print{.box,.dl,.noprint{display:none}body{background:#fff}}
+.days{display:flex;flex-wrap:wrap;gap:6px 14px;margin:4px 0 12px}.days label{flex-direction:row;align-items:center;gap:5px;font-size:.95rem}.days input{width:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Net worth tracker</h1>
+<p>A net worth calculator gives you one number. What you need after the second month is why it moved: did you pay down debt, did you save, or did the market or the house estimate do the work? List your accounts and debts once, save a snapshot each month (only the balances change), and this page breaks the change since last month down line by line, with liquid net worth, the monthly average and how many months to your goal at that pace.</p>
+<p class="noprint"><small>First visit: the figures below are an example household with two saved months. Press "Clear everything" under the form and type your own.</small></p>
+<div id="out"></div>
+<h2 class="noprint">Your accounts and debts</h2>
+<div class="box">
+<div class="row">
+<label>Snapshot month<input id="mon" type="month"></label>
+<label>Goal net worth (optional)<input id="goal" type="number" step="1000" inputmode="numeric" placeholder="e.g. 100000"></label>
+</div>
+<div id="bills"></div>
+<div class="dl"><button id="add" type="button">+ Add a line</button><button class="main" id="save" type="button">Save snapshot for this month</button></div>
+<div id="live"></div>
+<div class="dl"><button id="csv" type="button">Spreadsheet (CSV)</button><button id="prn" type="button">Print</button><button id="clr" type="button">Clear everything</button></div>
+<small>The page opens with an example household (two months saved) so you can see the result: press "Clear everything" and type your own. Nothing is sent anywhere, the page runs in your browser and keeps your snapshots in this browser only. Export the CSV from time to time as a backup.</small>
+</div>
+<h2 class="noprint">How it is calculated</h2>
+<div class="noprint">
+<p><b>Net worth</b> = everything you own minus everything you owe, on the day of the snapshot. Use what each thing would sell for today: the account balance, not what you paid in, a realistic sale price for the home, not the purchase price, a used-car valuation for the car. Pending pensions you cannot cash out and the resale value of furniture and clothes are usually left out.</p>
+<p><b>Liquid net worth</b> here = cash plus taxable investments, minus the debts that are not secured by the home or a vehicle (cards, personal and student loans, money owed to family). Retirement accounts and the home are left out because turning them into cash costs tax, penalties or a move. Definitions vary from one site to another: this is the one used on this page.</p>
+<p><b>What moved it</b>: each line is matched with the same name and type in the previous snapshot (a new line counts from 0, a removed line goes to 0). An asset that grew adds to net worth, a debt that shrank adds to net worth. The lines always add up exactly to the change in net worth. The page cannot tell a deposit from a market gain inside the same account: if you want that split, keep contributions as a separate line.</p>
+<p><b>Months to goal</b> = (goal minus latest net worth) divided by the average monthly change between your first and latest snapshot. It is a straight line, not a forecast: one big market month in either direction moves it a lot, so read it after 6 snapshots or more.</p>
+<p>Prefer to keep it on paper? The <a href="https://tidysheets.shop/p/net-worth-tracker-printable">printable net worth tracker</a> has the assets and debts snapshot with subtotals, a 24-month log (assets, debts, net worth, change) and a chart grid to plot it by hand (US Letter and A4).</p>
+</div>
+</main>
+<script id="core">
+// money in cents. kinds: assets cash, inv, ret, prop, oth ; debts sdebt (secured by home or vehicle), debt (other)
+const KINDS={cash:'Cash and checking',inv:'Taxable investments',ret:'Retirement accounts',prop:'Home and vehicles',oth:'Other asset',sdebt:'Mortgage or car loan',debt:'Other debt'};
+const isDebt=k=>k==='sdebt'||k==='debt';
+const cents=v=>Math.round((Number(v)||0)*100);
+function totals(lines){let a=0,d=0,lq=0;for(const l of lines){const v=Math.abs(l.c);if(isDebt(l.kind)){d+=v;if(l.kind==='debt')lq-=v}else{a+=v;if(l.kind==='cash'||l.kind==='inv')lq+=v}}return{assets:a,debts:d,net:a-d,liquid:lq}}
+const key=l=>l.kind+'|'+l.name.trim().toLowerCase();
+function moved(prev,cur){const m=new Map();
+ for(const l of prev){const k=key(l);const o=m.get(k)||{name:l.name.trim(),kind:l.kind,p:0,c:0};o.p+=Math.abs(l.c);m.set(k,o)}
+ for(const l of cur){const k=key(l);const o=m.get(k)||{name:l.name.trim(),kind:l.kind,p:0,c:0};o.c+=Math.abs(l.c);o.name=l.name.trim();m.set(k,o)}
+ const r=[];for(const o of m.values()){const e=isDebt(o.kind)?o.p-o.c:o.c-o.p;if(e!==0)r.push({...o,effect:e})}
+ r.sort((x,y)=>Math.abs(y.effect)-Math.abs(x.effect)||x.name.localeCompare(y.name));return r}
+const monthsBetween=(a,b)=>{const[y1,m1]=a.split('-').map(Number),[y2,m2]=b.split('-').map(Number);return(y2-y1)*12+(m2-m1)};
+// snaps sorted by month ; returns avg change per month (cents, float) and months to goal (null if unreachable)
+function pace(snaps,goal){if(snaps.length<2)return null;const f=snaps[0],l=snaps[snaps.length-1];const n=monthsBetween(f.month,l.month);if(n<=0)return null;
+ const nf=totals(f.lines).net,nl=totals(l.lines).net;const avg=(nl-nf)/n;let to=null;
+ if(goal!==null){const gap=goal-nl;if(gap<=0)to=0;else if(avg>0)to=Math.ceil(gap/avg)}return{avg,months:n,to}}
+if(typeof module!=='undefined')module.exports={totals,moved,pace,monthsBetween,isDebt};
+</script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fm=c=>(c<0?'-':'')+'$'+Math.round(Math.abs(c)/100).toLocaleString('en-US');
+const sg=c=>(c>0?'+':c<0?'-':'')+'$'+Math.round(Math.abs(c)/100).toLocaleString('en-US');
+const mname=m=>{const[y,mo]=m.split('-').map(Number);return new Date(Date.UTC(y,mo-1,1)).toLocaleDateString('en-US',{timeZone:'UTC',month:'short',year:'numeric'})};
+const EX_LINES=[['Checking','cash',2400],['Emergency fund','cash',6500],['Brokerage','inv',8200],['401(k)','ret',31500],['Home (realistic sale price)','prop',310000],['Car','prop',14000],['Mortgage','sdebt',246800],['Car loan','sdebt',9100],['Credit card','debt',2300],['Student loan','debt',18400]];
+const EX_PREV=[2900,6000,7900,30200,310000,14300,247600,9500,3100,18700];
+function exSnaps(){const t=new Date();let y=t.getFullYear(),m=t.getMonth()+1;const cur=y+'-'+String(m).padStart(2,'0');m--;if(m<1){m=12;y--}const pr=y+'-'+String(m).padStart(2,'0');
+ return[{month:pr,lines:EX_LINES.map((l,i)=>({name:l[0],kind:l[1],c:EX_PREV[i]*100}))},{month:cur,lines:EX_LINES.map(l=>({name:l[0],kind:l[1],c:l[2]*100}))}]}
+let S={snaps:[],goal:''};
+function store(){try{localStorage.setItem('networth',JSON.stringify(S))}catch(e){}}
+function load(){let s=null;try{s=JSON.parse(localStorage.getItem('networth')||'null')}catch(e){}S=s&&Array.isArray(s.snaps)?s:{snaps:exSnaps(),goal:'100000'};S.snaps.sort((a,b)=>a.month.localeCompare(b.month))}
+const opts=k=>Object.entries(KINDS).map(([v,t])=>`<option value="${v}"${v===k?' selected':''}>${t}</option>`).join('');
+function rowHTML(l){return `<div class="bill"><label>Account or debt<input class="nm" value="${esc(l.name)}" maxlength="60"></label><label>Type<select class="kd">${opts(l.kind)}</select></label><label>Value today, $<input class="am" type="number" min="0" step="any" value="${l.c/100}" inputmode="decimal"></label><button type="button" class="rm" aria-label="Remove">✕</button></div>`}
+const read=()=>[...document.querySelectorAll('.bill')].map(r=>({name:r.querySelector('.nm').value.trim()||'Unnamed',kind:r.querySelector('.kd').value,c:Math.abs(cents(r.querySelector('.am').value))}));
+function editor(){const m=$('mon').value;const s=S.snaps.find(x=>x.month===m)||[...S.snaps].reverse().find(x=>x.month<m)||S.snaps[S.snaps.length-1];
+ $('bills').innerHTML=(s?s.lines:[{name:'Checking',kind:'cash',c:0},{name:'Credit card',kind:'debt',c:0}]).map(rowHTML).join('')}
+function live(){const t=totals(read());const m=$('mon').value;const saved=S.snaps.some(x=>x.month===m);
+ $('live').innerHTML=`<p><b>This month as typed:</b> net worth ${fm(t.net)}, liquid ${fm(t.liquid)}. ${saved?'A snapshot for '+mname(m)+' exists: saving replaces it.':'Not saved yet for '+mname(m)+'.'}</p>`}
+function render(){const sn=S.snaps;let h='';if(!sn.length){$('out').innerHTML='<p>No snapshot saved yet.</p>';return}
+ const L=sn[sn.length-1],tl=totals(L.lines);const P=sn.length>1?sn[sn.length-2]:null;
+ const g=S.goal===''?null:cents(S.goal);const pc=pace(sn,g);
+ h+=`<div class="sum"><div>Net worth, ${mname(L.month)}<b>${fm(tl.net)}</b><small>${fm(tl.assets)} owned, ${fm(tl.debts)} owed</small></div><div>Liquid net worth<b>${fm(tl.liquid)}</b><small>cash and taxable investments minus non-secured debts</small></div>`;
+ if(P){const d=tl.net-totals(P.lines).net;h+=`<div>Change since ${mname(P.month)}<b class="${d<0?'neg':'pos'}">${sg(d)}</b><small>${pc?'average '+sg(Math.round(pc.avg))+' a month over '+pc.months+' month'+(pc.months>1?'s':''):''}</small></div>`}
+ if(pc&&g!==null)h+=`<div>Goal ${fm(g)}<b>${pc.to===0?'Reached':pc.to===null?'Not at this pace':pc.to+' month'+(pc.to>1?'s':'')}</b><small>${pc.to===null?'net worth is not growing on average':'straight line at the average monthly change'}</small></div>`;
+ h+='</div>';
+ if(P){const mv=moved(P.lines,L.lines);const pos=mv.filter(x=>x.effect>0).reduce((a,x)=>a+x.effect,0),neg=mv.filter(x=>x.effect<0).reduce((a,x)=>a+x.effect,0);
+  const dp=mv.filter(x=>isDebt(x.kind)&&x.effect>0).reduce((a,x)=>a+x.effect,0);
+  h+=`<h2>What moved it since ${mname(P.month)}</h2><p>${sg(pos)} from the lines that helped, ${sg(neg)} from the lines that hurt${dp?', of which '+sg(dp)+' is debt paid down':''}.</p><div class="scroll"><table class="res"><tr><th>Line</th><th>Before</th><th>Now</th><th>Effect on net worth</th></tr>`;
+  for(const x of mv)h+=`<tr><td>${esc(x.name)}<br><small>${KINDS[x.kind]}</small></td><td class="n">${fm(x.p)}</td><td class="n">${fm(x.c)}</td><td class="n ${x.effect<0?'neg':'pos'}"><b>${sg(x.effect)}</b></td></tr>`;
+  if(!mv.length)h+='<tr><td colspan="4">No line changed.</td></tr>';
+  h+='</table></div>'}
+ else h+='<p>Save a second month to see what moved your net worth.</p>';
+ h+=`<h2>Snapshots</h2><div class="scroll"><table class="res"><tr><th>Month</th><th>Owned</th><th>Owed</th><th>Net worth</th><th>Liquid</th><th>Change</th><th class="noprint"></th></tr>`;
+ sn.forEach((s,i)=>{const t=totals(s.lines);const d=i?t.net-totals(sn[i-1].lines).net:null;h+=`<tr><td class="d">${mname(s.month)}</td><td class="n">${fm(t.assets)}</td><td class="n">${fm(t.debts)}</td><td class="n"><b>${fm(t.net)}</b></td><td class="n">${fm(t.liquid)}</td><td class="n ${d<0?'neg':'pos'}">${d===null?'':sg(d)}</td><td class="noprint"><button type="button" class="del" data-m="${s.month}" aria-label="Delete ${mname(s.month)}">✕</button></td></tr>`});
+ h+='</table></div>';$('out').innerHTML=h}
+function dl(txt,name,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
+$('save').onclick=()=>{const m=$('mon').value;if(!m)return;S.snaps=S.snaps.filter(x=>x.month!==m);S.snaps.push({month:m,lines:read()});S.snaps.sort((a,b)=>a.month.localeCompare(b.month));store();live();render()};
+$('csv').onclick=()=>{const q=s=>'"'+String(s).replace(/"/g,'""')+'"';const keys=[];const seen=new Set();for(const s of S.snaps)for(const l of s.lines){const k=key(l);if(!seen.has(k)){seen.add(k);keys.push([k,l])}}
+ const H=['Month',...keys.map(([k,l])=>q(l.name+' ('+KINDS[l.kind]+')')),'Owned','Owed','Net worth','Liquid net worth'];const L=[H.join(',')];
+ for(const s of S.snaps){const v=new Map();for(const l of s.lines)v.set(key(l),(v.get(key(l))||0)+l.c);const t=totals(s.lines);L.push([s.month,...keys.map(([k])=>((v.get(k)||0)/100).toFixed(2)),...[t.assets,t.debts,t.net,t.liquid].map(c=>(c/100).toFixed(2))].join(','))}
+ dl(L.join('\r\n'),'net-worth-snapshots.csv','text/csv')};
+$('prn').onclick=()=>window.print();
+$('clr').onclick=()=>{if(!confirm('Delete every snapshot saved in this browser?'))return;S={snaps:[],goal:''};$('goal').value='';store();$('bills').innerHTML=[{name:'Checking',kind:'cash',c:0},{name:'Credit card',kind:'debt',c:0}].map(rowHTML).join('');live();render()};
+$('add').onclick=()=>{$('bills').insertAdjacentHTML('beforeend',rowHTML({name:'',kind:'cash',c:0}));live()};
+$('bills').addEventListener('input',live);$('bills').addEventListener('change',live);
+$('bills').addEventListener('click',e=>{if(e.target.classList.contains('rm')){e.target.closest('.bill').remove();live()}});
+$('out').addEventListener('click',e=>{const m=e.target.dataset&&e.target.dataset.m;if(m&&e.target.classList.contains('del')){S.snaps=S.snaps.filter(x=>x.month!==m);store();live();render()}});
+$('mon').onchange=()=>{editor();live()};
+$('goal').oninput=()=>{S.goal=$('goal').value;store();render()};
+load();{const t=new Date();$('mon').value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')}$('goal').value=S.goal;editor();live();render();
+</script>
+</body>
+</html>
